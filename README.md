@@ -1,30 +1,27 @@
-# Terraform Module Template
+# tf-atom-cloudwatch-log-subscription-filter-aws
 
 <!-- Badges: Update REPO_OWNER/REPO_NAME after creating from template -->
-[![CI](https://github.com/PlatformStackPulse/terraform-atom-molecule-module-template/actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
-[![Release](https://github.com/PlatformStackPulse/terraform-atom-molecule-module-template/actions/workflows/auto-release.yml/badge.svg)](../../actions/workflows/auto-release.yml)
-[![CodeQL](https://github.com/PlatformStackPulse/terraform-atom-molecule-module-template/actions/workflows/codeql.yml/badge.svg)](../../actions/workflows/codeql.yml)
-[![Changelog](https://github.com/PlatformStackPulse/terraform-atom-molecule-module-template/actions/workflows/changelog.yml/badge.svg)](../../actions/workflows/changelog.yml)
-![Latest Release](https://img.shields.io/github/v/release/PlatformStackPulse/terraform-atom-molecule-module-template?label=latest%20release&sort=semver)
-![Terraform](https://img.shields.io/badge/terraform-%3E%3D1.6.0-blue?logo=terraform)
-![License](https://img.shields.io/github/license/PlatformStackPulse/terraform-atom-molecule-module-template)
+[![CI](https://github.com/PlatformStackPulse/tf-atom-cloudwatch-log-subscription-filter-aws/actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+[![Release](https://github.com/PlatformStackPulse/tf-atom-cloudwatch-log-subscription-filter-aws/actions/workflows/auto-release.yml/badge.svg)](../../actions/workflows/auto-release.yml)
+[![CodeQL](https://github.com/PlatformStackPulse/tf-atom-cloudwatch-log-subscription-filter-aws/actions/workflows/codeql.yml/badge.svg)](../../actions/workflows/codeql.yml)
+[![Changelog](https://github.com/PlatformStackPulse/tf-atom-cloudwatch-log-subscription-filter-aws/actions/workflows/changelog.yml/badge.svg)](../../actions/workflows/changelog.yml)
+![Latest Release](https://img.shields.io/github/v/release/PlatformStackPulse/tf-atom-cloudwatch-log-subscription-filter-aws?label=latest%20release&sort=semver)
+![Terraform](https://img.shields.io/badge/terraform-%3E%3D1.11.3-blue?logo=terraform)
+![License](https://img.shields.io/github/license/PlatformStackPulse/tf-atom-cloudwatch-log-subscription-filter-aws)
 
-A production-ready template for creating Terraform modules following the **one module per repository** best practice, with built-in CI/CD, security scanning, testing, documentation generation, and publishing to public registries.
+An atom Terraform module for provisioning an Amazon CloudWatch Logs subscription filter, wired to the shared [tf-label](https://github.com/PlatformStackPulse/tf-label) naming/tagging context so its identity and tags stay consistent across the PlatformStackPulse fleet.
 
 ## Features
 
-- **One Module Per Repo** — Module lives at the root; no nested `modules/` directory
-- **Registry Publishing** — Auto-publish to Terraform Registry, Artifactory, or GitLab on release
-- **Native Terraform Testing** — `terraform test` with mock providers (no external tools)
-- **Security Scanning** — Trivy IaC scanning for HIGH/CRITICAL vulnerabilities
-- **Linting** — TFLint with AWS ruleset (preset "all")
-- **Auto Documentation** — terraform-docs generates README sections on every commit
-- **GitHub Actions CI/CD** — Workflows for the full module lifecycle
-- **Auto Release** — CI passes on main → auto-tag → GitHub Release created
-- **Pre-Commit Hooks** — Format, validate, lint, docs, and security on every commit
-- **Conventional Commits** — Enforced commit message format
-- **Semantic Versioning** — Automated version management and releases
-- **DevContainer** — VS Code remote development ready
+- **tf-label Context** — Standard `namespace`/`stage`/`name`/`tags` labelling via the shared `tf-label` module (`module.this`); consistent `id` and tag generation across the fleet.
+- **Toggle Switch** — `enabled = false` disables the module so it provisions nothing, enabling clean conditional composition inside cells/molecules.
+- **Atom Design** — One module per repository, module at the repo root (no nested `modules/`), consumable by cells and molecules via a pinned Git ref.
+- **Native Terraform Testing** — `terraform test` unit tests run against a mock AWS provider (no credentials, no real AWS calls).
+- **Security Scanning** — Trivy IaC scanning for HIGH/CRITICAL findings on every CI run.
+- **Linting** — TFLint with the AWS ruleset.
+- **Auto Documentation** — terraform-docs keeps the inputs/outputs table below in sync.
+- **CI/CD + Auto Release** — GitHub Actions runs format/validate/lint/test/security; a green `main` auto-tags a semver release.
+- **Conventional Commits + Semantic Versioning** — Enforced commit format drives automated version bumps.
 
 ## CI Pipeline
 
@@ -77,15 +74,16 @@ See [TEMPLATE_GUIDE.md](TEMPLATE_GUIDE.md) for detailed instructions.
 
 ## Usage
 
-### From GitHub
-
 ```hcl
-module "this" {
-  source = "github.com/PlatformStackPulse/terraform-aws-my-module?ref=v1.0.0"
+module "log_subscription_filter" {
+  source = "git::https://github.com/PlatformStackPulse/tf-atom-cloudwatch-log-subscription-filter-aws.git?ref=v1.0.0"
 
-  name        = "my-resource"
-  environment = "dev"
-  namespace   = "myorg"
+  # tf-label identity (required for meaningful naming/tagging)
+  namespace = "eg"
+  stage     = "prod"
+  name      = "app-logs"
+
+  # enabled = false  # set to disable the module (provisions nothing)
 
   tags = {
     Project = "example"
@@ -94,23 +92,9 @@ module "this" {
 }
 ```
 
-### From Terraform Registry
-
-```hcl
-module "this" {
-  source  = "PlatformStackPulse/my-module/aws"
-  version = "~> 1.0"
-
-  name        = "my-resource"
-  environment = "dev"
-  namespace   = "myorg"
-
-  tags = {
-    Project = "example"
-    Owner   = "platform-engineering"
-  }
-}
-```
+Consume a specific release by pinning `?ref=` to a semver tag (recommended for
+production) or to a preview tag emitted on a feature branch for integration
+testing.
 
 ## Module Structure
 
@@ -153,6 +137,26 @@ make changelog         Regenerate CHANGELOG.md
 make version           Show current version
 make release           Create version tag (BUMP=patch|minor|major)
 ```
+
+## Tests
+
+Unit tests run against a **mock AWS provider** — no AWS credentials and no real
+API calls. They assert only on values known at `plan` time (the `tf-label` id,
+input pass-throughs, and the `enabled` flag).
+
+```bash
+terraform init -backend=false
+terraform test -test-directory=tests/unit        # unit tests (mock provider)
+# or:
+make test-unit
+```
+
+Integration tests live in `tests/integration/` and run against a real AWS
+provider (credentials required); enable them with
+`terraform test -test-directory=tests/integration` or `make test-integration`.
+
+> Note: `terraform test -filter=tests/unit/` is a silent no-op that runs zero
+> tests — always use `-test-directory=tests/unit`.
 
 ## Publishing
 
