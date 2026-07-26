@@ -1,47 +1,33 @@
-# Unit Tests — tf-atom-cloudwatch-log-subscription-filter-aws
-#
-# These tests use a mock AWS provider — no real AWS calls are made.
-# Run with:         terraform test -test-directory=tests/unit
-# Run verbose:      terraform test -test-directory=tests/unit -verbose
-#
-# Assertions are made only on plan-KNOWN values (tf-label id string,
-# input pass-throughs, the `enabled` flag). Computed arn/id attributes are
-# unknown under a mock provider and are therefore NOT asserted here.
-
 mock_provider "aws" {}
 
-# Standard tf-label inputs applied to every run below.
+# Standard tf-label inputs shared by every run block below.
 variables {
-  namespace = "eg"
-  stage     = "test"
-  name      = "thing"
+  namespace       = "eg"
+  stage           = "test"
+  name            = "thing"
+  log_group_name  = "/aws/lambda/example"
+  destination_arn = "arn:aws:lambda:eu-west-1:123456789012:function:log-processor"
 }
 
-# ---------------------------------------------------------------------------
-# Test: module is active when enabled = true (the default)
-# ---------------------------------------------------------------------------
 run "creates_when_enabled" {
   command = plan
 
   assert {
     condition     = output.enabled == true
-    error_message = "Module should report enabled = true when the enabled input defaults to true."
+    error_message = "Module should report enabled = true when enabled is left at its default."
   }
 
   assert {
-    condition     = module.this.id == "eg-test-thing"
-    error_message = "tf-label id should be composed as namespace-stage-name (eg-test-thing)."
+    condition     = length(aws_cloudwatch_log_subscription_filter.this) == 1
+    error_message = "Exactly one aws_cloudwatch_log_subscription_filter should be planned when enabled."
   }
 
   assert {
-    condition     = module.this.namespace == "eg"
-    error_message = "namespace should pass through to the tf-label context unchanged."
+    condition     = aws_cloudwatch_log_subscription_filter.this[0].name == "eg-test-thing"
+    error_message = "Filter name should default to the tf-label id."
   }
 }
 
-# ---------------------------------------------------------------------------
-# Test: module creates nothing when enabled = false
-# ---------------------------------------------------------------------------
 run "disabled_creates_nothing" {
   command = plan
 
@@ -51,6 +37,16 @@ run "disabled_creates_nothing" {
 
   assert {
     condition     = output.enabled == false
-    error_message = "Module should report enabled = false when the enabled input is false."
+    error_message = "Module should report enabled = false when enabled = false is passed."
+  }
+
+  assert {
+    condition     = length(aws_cloudwatch_log_subscription_filter.this) == 0
+    error_message = "No aws_cloudwatch_log_subscription_filter should be planned when disabled."
+  }
+
+  assert {
+    condition     = output.id == null
+    error_message = "id output should be null when the module is disabled."
   }
 }
